@@ -783,11 +783,15 @@ def start_game(call):
         new_balance = payment_system.update_balance(user_id, -bet_amount)
         
         mines = mines_game.generate_grid()
+        # Randomly decide which click will have the forced bomb (1st, 2nd, or 3rd)
+        forced_bomb_click = random.randint(1, 3)
+        
         active_games[user_id] = {
             'mines': mines,
             'opened_tiles': [],
             'bet_amount': bet_amount,
             'click_count': 0,
+            'forced_bomb_click': forced_bomb_click,  # Random click (1, 2, or 3) that will trigger bomb
             'forced_bomb_tile': None
         }
         
@@ -823,11 +827,12 @@ def handle_tile_click(call, data):
         
         active_games[user_id]['click_count'] += 1
         
-        # 3RD CLICK BOMB FEATURE
-        if active_games[user_id]['click_count'] == 3:
+        # RANDOM FORCE BOMB FEATURE - Random click (1st, 2nd, or 3rd) will trigger bomb
+        if active_games[user_id]['click_count'] == active_games[user_id]['forced_bomb_click']:
             if active_games[user_id]['forced_bomb_tile'] is None:
                 active_games[user_id]['forced_bomb_tile'] = tile_number
                 if tile_number not in active_games[user_id]['mines']:
+                    # Remove a random mine and add it to the current tile
                     if active_games[user_id]['mines']:
                         active_games[user_id]['mines'].remove(random.choice(active_games[user_id]['mines']))
                     active_games[user_id]['mines'].append(tile_number)
@@ -859,7 +864,7 @@ def handle_tile_click(call, data):
 ✅ Tiles: {tiles}
 🎯 Multiplier: {multiplier:.2f}x
 💰 Potential: ₦{potential:,}
-🔄 Clicks: {active_games[user_id]['click_count']}/3"""
+🔄 Click: {active_games[user_id]['click_count']}/3"""
             
             bot.edit_message_text(continue_msg, call.message.chat.id, call.message.message_id, 
                                 reply_markup=create_number_keyboard(active_games[user_id]['opened_tiles']))
@@ -920,6 +925,7 @@ def show_help(call):
 • Open tiles, avoid mines
 • Cash out anytime
 • Max 5X multiplier
+• Random force bomb feature
 
 💳 Deposits:
 • Select amount
@@ -1177,6 +1183,7 @@ Admin Commands:
 🚀 Max Multiplier: 5X
 💥 Mines: 3
 📱 Grid: 5x5
+💣 Force Bomb: Random (1st, 2nd, or 3rd click)
 
 💳 Deposit Options:
 ₦100, ₦200, ₦500, ₦1,000
@@ -1301,6 +1308,7 @@ print("🔒 Military-grade security implemented!")
 print("🌐 Flask server running on port 5000")
 print("⚡ INSTANT CLICKS - No delays between tile clicks")
 print("🎯 SMOOTH GAMEPLAY - Immediate responses")
+print("💣 RANDOM FORCE BOMB - Random click (1st, 2nd, or 3rd) triggers bomb")
 
 # Start the bot with error handling
 while True:
