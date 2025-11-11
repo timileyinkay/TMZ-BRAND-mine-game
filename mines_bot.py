@@ -418,19 +418,6 @@ active_games = {}
 MIN_STAKE = 30
 MIN_WITHDRAWAL = 100
 
-# === IMPROVED RATE LIMITING ===
-def rate_limit_check(user_id):
-    """Improved rate limiting for better user experience"""
-    current_time = time.time()
-    if user_id in active_games:
-        game = active_games[user_id]
-        if 'last_action' in game:
-            # Reduced from 1 second to 0.3 seconds for better UX
-            if current_time - game['last_action'] < 0.3:
-                return False
-        game['last_action'] = current_time
-    return True
-
 def is_authorized_admin(user_id):
     """Check if user is authorized admin"""
     return user_id == ADMIN_ID
@@ -569,11 +556,6 @@ def handle_all_clicks(call):
     try:
         user_id = call.from_user.id
         data = call.data
-        
-        # Improved rate limiting check
-        if not rate_limit_check(user_id):
-            bot.answer_callback_query(call.id, "⏳ Please wait...")
-            return
             
         if data == "main_menu":
             show_main_menu(call)
@@ -806,8 +788,7 @@ def start_game(call):
             'opened_tiles': [],
             'bet_amount': bet_amount,
             'click_count': 0,
-            'forced_bomb_tile': None,
-            'last_action': time.time()
+            'forced_bomb_tile': None
         }
         
         grid = mines_game.get_grid_display([], mines)
@@ -834,53 +815,43 @@ def handle_tile_click(call, data):
             bot.answer_callback_query(call.id, "❌ No game!")
             return
         
-        # Improved rate limiting for tile clicks
-        current_time = time.time()
-        game = active_games[user_id]
-        if 'last_action' in game:
-            # Very short delay for tile clicks only (0.2 seconds)
-            if current_time - game['last_action'] < 0.2:
-                bot.answer_callback_query(call.id, "⏳ Please wait...")
-                return
-        game['last_action'] = current_time
-        
         tile_number = int(data.split("_")[1]) - 1
         
-        if tile_number in game['opened_tiles']:
+        if tile_number in active_games[user_id]['opened_tiles']:
             bot.answer_callback_query(call.id, "✅ Already opened!")
             return
         
-        game['click_count'] += 1
+        active_games[user_id]['click_count'] += 1
         
         # 3RD CLICK BOMB FEATURE
-        if game['click_count'] == 3:
-            if game['forced_bomb_tile'] is None:
-                game['forced_bomb_tile'] = tile_number
-                if tile_number not in game['mines']:
-                    if game['mines']:
-                        game['mines'].remove(random.choice(game['mines']))
-                    game['mines'].append(tile_number)
+        if active_games[user_id]['click_count'] == 3:
+            if active_games[user_id]['forced_bomb_tile'] is None:
+                active_games[user_id]['forced_bomb_tile'] = tile_number
+                if tile_number not in active_games[user_id]['mines']:
+                    if active_games[user_id]['mines']:
+                        active_games[user_id]['mines'].remove(random.choice(active_games[user_id]['mines']))
+                    active_games[user_id]['mines'].append(tile_number)
         
-        game['opened_tiles'].append(tile_number)
+        active_games[user_id]['opened_tiles'].append(tile_number)
         
-        if tile_number in game['mines']:
-            grid = mines_game.get_grid_display(game['opened_tiles'], game['mines'], True)
+        if tile_number in active_games[user_id]['mines']:
+            grid = mines_game.get_grid_display(active_games[user_id]['opened_tiles'], active_games[user_id]['mines'], True)
             loss_msg = f"""
 💥 GAME OVER
 
 {grid}
-🎯 Reached: {mines_game.calculate_multiplier(len(game['opened_tiles'])-1):.2f}x
-💸 Lost: ₦{game['bet_amount']:,}
+🎯 Reached: {mines_game.calculate_multiplier(len(active_games[user_id]['opened_tiles'])-1):.2f}x
+💸 Lost: ₦{active_games[user_id]['bet_amount']:,}
 💼 Balance: ₦{payment_system.get_user_balance(user_id):,}"""
             
             del active_games[user_id]
             bot.edit_message_text(loss_msg, call.message.chat.id, call.message.message_id, reply_markup=create_main_menu())
         else:
-            tiles = len(game['opened_tiles'])
+            tiles = len(active_games[user_id]['opened_tiles'])
             multiplier = mines_game.calculate_multiplier(tiles)
-            potential = game['bet_amount'] * multiplier
+            potential = active_games[user_id]['bet_amount'] * multiplier
             
-            grid = mines_game.get_grid_display(game['opened_tiles'], game['mines'])
+            grid = mines_game.get_grid_display(active_games[user_id]['opened_tiles'], active_games[user_id]['mines'])
             continue_msg = f"""
 🎮 MINES GAME
 
@@ -888,10 +859,10 @@ def handle_tile_click(call, data):
 ✅ Tiles: {tiles}
 🎯 Multiplier: {multiplier:.2f}x
 💰 Potential: ₦{potential:,}
-🔄 Clicks: {game['click_count']}/3"""
+🔄 Clicks: {active_games[user_id]['click_count']}/3"""
             
             bot.edit_message_text(continue_msg, call.message.chat.id, call.message.message_id, 
-                                reply_markup=create_number_keyboard(game['opened_tiles']))
+                                reply_markup=create_number_keyboard(active_games[user_id]['opened_tiles']))
             bot.answer_callback_query(call.id, f"✅ Safe! {multiplier:.2f}x")
     except Exception as e:
         logging.error(f"Error in handle_tile_click: {e}")
@@ -1328,7 +1299,8 @@ print("💸 Min withdrawal: ₦100")
 print("✅ Database with payment requests!")
 print("🔒 Military-grade security implemented!")
 print("🌐 Flask server running on port 5000")
-print("⏰ Improved rate limiting: 0.3s general, 0.2s tile clicks")
+print("⚡ INSTANT CLICKS - No delays between tile clicks")
+print("🎯 SMOOTH GAMEPLAY - Immediate responses")
 
 # Start the bot with error handling
 while True:
