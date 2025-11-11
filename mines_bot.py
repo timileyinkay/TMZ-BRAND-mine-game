@@ -418,14 +418,15 @@ active_games = {}
 MIN_STAKE = 30
 MIN_WITHDRAWAL = 100
 
-# === SECURITY MIDDLEWARE ===
+# === IMPROVED RATE LIMITING ===
 def rate_limit_check(user_id):
-    """Basic rate limiting for security"""
+    """Improved rate limiting for better user experience"""
     current_time = time.time()
     if user_id in active_games:
         game = active_games[user_id]
         if 'last_action' in game:
-            if current_time - game['last_action'] < 1:  # 1 second between actions
+            # Reduced from 1 second to 0.3 seconds for better UX
+            if current_time - game['last_action'] < 0.3:
                 return False
         game['last_action'] = current_time
     return True
@@ -569,7 +570,7 @@ def handle_all_clicks(call):
         user_id = call.from_user.id
         data = call.data
         
-        # Rate limiting check
+        # Improved rate limiting check
         if not rate_limit_check(user_id):
             bot.answer_callback_query(call.id, "⏳ Please wait...")
             return
@@ -599,9 +600,9 @@ def handle_all_clicks(call):
         elif data.startswith("admin_"):
             handle_admin_clicks(call)
         elif data.startswith("approve_deposit_") or data.startswith("reject_deposit_"):
-            handle_admin_clicks(call)  # Fixed: Handle deposit approval/rejection
+            handle_admin_clicks(call)
         elif data.startswith("approve_withdrawal_") or data.startswith("reject_withdrawal_"):
-            handle_admin_clicks(call)  # Fixed: Handle withdrawal approval/rejection
+            handle_admin_clicks(call)
     except Exception as e:
         logging.error(f"Error in callback: {e}")
         bot.answer_callback_query(call.id, "❌ Error occurred, please try again")
@@ -833,20 +834,23 @@ def handle_tile_click(call, data):
             bot.answer_callback_query(call.id, "❌ No game!")
             return
         
-        # Rate limiting
-        if not rate_limit_check(user_id):
-            bot.answer_callback_query(call.id, "⏳ Please wait...")
-            return
+        # Improved rate limiting for tile clicks
+        current_time = time.time()
+        game = active_games[user_id]
+        if 'last_action' in game:
+            # Very short delay for tile clicks only (0.2 seconds)
+            if current_time - game['last_action'] < 0.2:
+                bot.answer_callback_query(call.id, "⏳ Please wait...")
+                return
+        game['last_action'] = current_time
         
         tile_number = int(data.split("_")[1]) - 1
-        game = active_games[user_id]
         
         if tile_number in game['opened_tiles']:
             bot.answer_callback_query(call.id, "✅ Already opened!")
             return
         
         game['click_count'] += 1
-        game['last_action'] = time.time()
         
         # 3RD CLICK BOMB FEATURE
         if game['click_count'] == 3:
@@ -1142,7 +1146,7 @@ Admin Commands:
         from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
         markup = InlineKeyboardMarkup()
         
-        for deposit in pending_deposits[:10]:  # Show first 10
+        for deposit in pending_deposits[:10]:
             request_id, user_id, amount, receipt_file_id, status, timestamp, balance = deposit
             markup.row(
                 InlineKeyboardButton(f"Approve #{request_id}", callback_data=f"approve_deposit_{request_id}"),
@@ -1171,7 +1175,7 @@ Admin Commands:
         from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
         markup = InlineKeyboardMarkup()
         
-        for withdrawal in pending_withdrawals[:10]:  # Show first 10
+        for withdrawal in pending_withdrawals[:10]:
             request_id, user_id, amount, status, timestamp, balance = withdrawal
             markup.row(
                 InlineKeyboardButton(f"Approve #{request_id}", callback_data=f"approve_withdrawal_{request_id}"),
@@ -1209,7 +1213,7 @@ Admin Commands:
         
         bot.edit_message_text(settings_msg, call.message.chat.id, call.message.message_id, reply_markup=create_admin_panel())
     
-    # Handle deposit approval/rejection - FIXED
+    # Handle deposit approval/rejection
     elif data.startswith("approve_deposit_") or data.startswith("reject_deposit_"):
         request_id = int(data.split("_")[2])
         action = "approved" if data.startswith("approve_deposit_") else "rejected"
@@ -1259,7 +1263,7 @@ Please contact support if you believe this is an error."""
         else:
             bot.answer_callback_query(call.id, f"❌ Failed to {action} deposit #{request_id}")
     
-    # Handle withdrawal approval/rejection - FIXED
+    # Handle withdrawal approval/rejection
     elif data.startswith("approve_withdrawal_") or data.startswith("reject_withdrawal_"):
         request_id = int(data.split("_")[2])
         action = "approved" if data.startswith("approve_withdrawal_") else "rejected"
@@ -1324,6 +1328,7 @@ print("💸 Min withdrawal: ₦100")
 print("✅ Database with payment requests!")
 print("🔒 Military-grade security implemented!")
 print("🌐 Flask server running on port 5000")
+print("⏰ Improved rate limiting: 0.3s general, 0.2s tile clicks")
 
 # Start the bot with error handling
 while True:
